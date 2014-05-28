@@ -2,6 +2,11 @@ Replicating the analysis from Patil, et. Al. (2014)
 Runtime: ~50 minutes
 Run environment: R
 
+0. Install git and github so that you can pull these files.
+   Alternatively, if you are averse to doing so, a .zip archive
+   containing all these materials can be found here: 
+   http://biostat.jhsph.edu/~prpatil/testsetbias.zip
+
 1. Please ensure that the necessary packages are installed on your
 system.
 
