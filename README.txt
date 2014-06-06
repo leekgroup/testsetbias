@@ -37,7 +37,8 @@ your working directory. Then run the following commands
 
 The whole processs should take about 50 minutes to run. The resulting file
 "test_set_analysis.html" can be opened in a web browser to view the analysis
-and figures from the paper.
+and figures from the paper. The downloaded data and code chunks will be cached
+so that the analysis can be run again and/or modified quickly.
 
 There are two sections that use data from simulations which are currently not 
 evaluated (the data are simply provided). You may choose to run those by changing 

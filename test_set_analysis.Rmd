@@ -23,7 +23,8 @@ source("build_chimera.R")
 source("model_tree.R")
 source("predict_prob_table.R")
 source("make_prob_table.R")
-source("download_esets.R")
+#source("download_esets.R")
+load("/amber2/scratch/persmed/BC/1_15_2014_eset.Rda")
 load("data/pair_sim_out.Rda")
 load("data/100_pair_out.Rda")
 ```
@@ -894,7 +895,19 @@ all <- do.call(rbind, lapply(eset.all[c(1:4, 6:27)], pData)) # We are excluding 
 all$tsp_pred <- factor(unlist(lapply(all_preds_chim[c(1:4, 6:27)], "[[", "preds")))
 all$preds_noscale <- factor(unlist(lapply(all_preds_chim[c(1:4, 6:27)], "[[", "preds_noscale")))
 
-# Kaplan-Meier estimates for both subtypers
+
+# Final counts of each subtype for:
+
+# PAM50
+table(all$subtype)
+
+# PAM50 no scale
+table(all$preds_noscale)
+
+# TSP
+table(all$tsp_pred)
+
+# K-M estimators for all subtypers
 
 s1 <- survfit(Surv(t.dfs, e.dfs)~subtype, data=all)
 s2 <- survfit(Surv(t.dfs, e.dfs)~tsp_pred, data=all)
@@ -929,7 +942,7 @@ cp2_low <- exp(cp2$coef - 1.96*sqrt(diag(cp2$var)))
 cp2_up <- exp(cp2$coef + 1.96*sqrt(diag(cp2$var)))
 
 cp2_out <- cbind(exp(cp2$coef), cp2_low, cp2_up)
-rownames(cp2_out) <- c("Basal", "Her2", "LumB")
+rownames(cp2_out) <- c("Basal", "Her2", "LumB", "Normal")
 colnames(cp2_out) <- c("HR Estimate", "95%L", "95%U")
 
 cp3_low <- exp(cp3$coef - 1.96*sqrt(diag(cp3$var)))
@@ -939,10 +952,25 @@ cp3_out <- cbind(exp(cp3$coef), cp3_low, cp3_up)
 rownames(cp3_out) <- c("Basal", "Her2", "LumB","Normal")
 colnames(cp3_out) <- c("HR Estimate", "95%L", "95%U")
 
-
 cp1_out
 cp3_out
 cp2_out
+
+# Forest plot of hazard ratios
+
+x <- rep(c("Basal", "Her2", "LumB", "Normal"), 3)
+y <- c(2.081, 2.279, 1.956, 1.750, 1.907, 1.843, 2.150, 1.329,
+       1.974, 2.000, 1.785, 1.650)
+ylo <- c(1.703, 1.820, 1.628, 1.161, 1.558, 1.451, 1.814, 1.026,
+         1.608, 1.563, 1.496, 1.051)
+yhi <- c(2.542, 2.853, 2.350, 2.638, 2.335, 2.340, 2.549, 1.723,
+         2.423, 2.559, 2.130, 2.590)
+n <- c(932, 649, 1179, 217, 648, 371, 822, 299, 782, 508, 1527, 101)
+
+d <- data.frame(x=x, y=y, ylo=ylo, yhi=yhi, category=rep(c("PAM50", "PAM50 (unscaled)", "TSP"), each=4), n=n, class_col=rep(colors[c(1,2,4,5)],3))
+
+ggplot(d, aes(x=category, y=y, ymin=ylo, ymax=yhi,color=factor(x))) + scale_color_manual(values=colors,guide='none')  + geom_linerange(lwd=1) + coord_flip() + geom_point(aes(size=n)) + geom_hline(aes(yintercept=1), lty=2) + xlab('Classifier') + ylab('Hazard Ratio (95% CI)') + facet_grid(~x) + theme(axis.text=element_text(size=12), axis.title=element_text(size=14,face="bold"), strip.text.x=element_text(size=14))
+
 ```
 NOTE: This is currently non-functional.
 Now that our final model has been trained, we examine its stability in qRT-PCR data.
@@ -1224,7 +1252,7 @@ par(mfrow=c(2,3))
 
 for(i in 1:5){ 
 plot(sample_ranks, ctr_ranks[,i], main=colnames(ctr_ranks)[i], xlab="Sample Ranks", ylab=paste(colnames(ctr_ranks)[i], "Ranks"), 
-sub=paste("Spearman Correlation=",round(cor(sample, ctr[,i], method="spearman"), 3)), 
+sub=paste("Spearman Correlation=",round(cor(sample, ctr[,i], method="spearman"), 3)), cex=3, 
 pch=20, cex.axis=1.3, cex.sub=1.1, cex.lab=1.1, col=colors[i])
 }
 
