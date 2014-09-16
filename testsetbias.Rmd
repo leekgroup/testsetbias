@@ -1,0 +1,276 @@
+# Analysis run for Cross-platform TSP
+
+# First, we load all the libraries, files, and data.
+
+```{r dependencies, eval=TRUE}
+set.seed(47209)
+library(genefu) # has the genes for PAM50
+library(colorspace) # colors for plots
+library(ggplot2)
+library(plyr)
+library(affyPLM)
+library(pamr)
+library(MetaGx)
+source("download_esets.R")
+```
+
+Let us get summary information on our datasets (28 total microarry experiments).
+
+```{r init, cache=TRUE, warning=FALSE}
+
+n <- sum(unlist(lapply(lapply(eset.all, dim), "[[", 2)))
+# 6297
+
+table(unlist(lapply(eset.all, function(x){pData(x)$node})))
+n - sum(table(unlist(lapply(eset.all, function(x){pData(x)$node}))))
+#   0    1    2
+#2857 1871    2
+# 1567 NA
+
+table(unlist(lapply(eset.all, function(x){pData(x)$er})))
+n - sum(table(unlist(lapply(eset.all, function(x){pData(x)$er}))))
+#    0    1
+# 1556 3635
+# 1106 NA
+
+table(unlist(lapply(eset.all, function(x){pData(x)$grade})))
+n - sum(table(unlist(lapply(eset.all, function(x){pData(x)$grade}))))
+#   1    2    3
+# 525 1642 2226
+# 1904 NA
+
+table(unlist(lapply(eset.all, function(x){pData(x)$her2})))
+n - sum(table(unlist(lapply(eset.all, function(x){pData(x)$her2}))))
+#   0    1
+# 1437  496
+# 4364 NA
+
+table(unlist(lapply(eset.all, function(x){pData(x)$subtype})))
+
+# Basal   Her2   LumB   LumA Normal
+#  1254    927   2007   1813    296
+
+summary(unlist(lapply(eset.all, function(x){pData(x)$t.rfs})))
+
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's
+#      3    1164    2280    2637    3915    9218    2991
+
+sd(unlist(lapply(eset.all, function(x){pData(x)$t.rfs})), na.rm=T)
+# 1772.906
+
+table(unlist(lapply(eset.all, function(x){pData(x)$pgr})))
+
+#  0   1
+# 656 766
+# 4875 NA
+
+summary(unlist(lapply(eset.all, function(x){pData(x)$age})))
+
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's
+#  21.00   47.00   56.40   57.29   67.24   96.29    1547
+
+sd(unlist(lapply(eset.all, function(x){pData(x)$age})), na.rm=T)
+
+# 13.42863
+
+summary(unlist(lapply(eset.all, function(x){pData(x)$size})))
+
+#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's
+# -9.000   1.600   2.200   2.521   3.000  18.200    1720
+
+sd(unlist(lapply(eset.all, function(x){pData(x)$size})), na.rm=T)
+
+#1.434876
+
+# Here, we are simplifying the platform labels so that we can look at like technologies together
+
+platforms <- unlist(lapply(eset.all, annotation))
+platforms[c(1,11,25)] <- "agilent"
+platforms[c(21,28)] <- "illumina"
+platforms[c(12,16)] <- "swegene"
+platforms[c(3,4,5,17,22)] <- "other"
+
+# Find the union and intersection of probes across all experiments
+
+length(Reduce(union, lapply(eset.all, rownames)))
+length(Reduce(intersect, lapply(eset.all, rownames)))
+
+```
+
+Here we examine how predicitions from PAM50 with scaling (normalization of data) change
+when the makeup of the sample changes (size of sample and ER status distribution).
+
+```{r bias, cache=TRUE, fig.width=15, fig.height=12, warning=FALSE}
+
+affy <- eset.all$GSE7390 # This is an affy hgu133plus2 dataset
+annot <- fData(affy)
+names(annot)[1] <- "EntrezGene.ID"
+annot$probe <- rownames(annot)
+# pam50.robust applies centering/scaling to the data
+affy_pam <- intrinsic.cluster.predict(sbt.model=pam50.robust, data=t(exprs(affy)), annot=annot,do.mapping=T)$subtype
+
+num <- c(2, 10, 20, 40, 80, 100, 120)
+prog <- matrix(NA, 100, length(num))
+n <- 100
+
+for(i in 1:length(num)){
+	for(j in 1:n){
+		idx <- sample(colnames(exprs(affy)), num[i], replace=F)
+	        tmp_pam <- intrinsic.cluster.predict(sbt.model=pam50.robust, data=t(exprs(affy))[idx,], annot=annot,do.mapping=T)$subtype
+		prog[j,i] <- sum(tmp_pam == affy_pam[idx])/length(tmp_pam)
+	}
+}
+
+boxplot(prog, names=num, outline=F,xlab="# Samples", ylab="% Concordance with Full Predictions", main="Changes in predictions on scaled data as more patients are added")
+for(i in 1:length(num)){
+	points(jitter(rep(i, n), amount=1/(i+3)), prog[,i], pch=21, bg="dodgerblue1", col="black")
+}
+
+# Split data into er- and er+ groups
+er_min_sub <- exprs(affy)[,pData(affy)$samplename[which(pData(affy)$er == 0)]]
+er_max_sub <- exprs(affy)[,pData(affy)$samplename[which(pData(affy)$er == 1)]]
+
+er_min_out <- affy_pam[which(pData(affy)$er == 0)]
+er_max_out <- affy_pam[which(pData(affy)$er == 1)]
+names(er_min_out) <- colnames(er_min_sub)
+names(er_max_out) <- colnames(er_max_sub)
+
+n2 <- 100
+prog_mean <- prog_sd <- vector("numeric", 41)
+
+# Let's go from all ER- to all ER+
+
+for(i in 0:40){
+	cur <- vector("numeric", n2)
+	for(j in 1:n2){
+		idx_min <- sample(colnames(er_min_sub), i, replace=F)
+		idx_max <- sample(colnames(er_max_sub), 40-i, replace=F)
+		dat <- cbind(er_min_sub[,idx_min], er_max_sub[,idx_max])
+		st <- c(er_min_out[idx_min], er_max_out[idx_max])
+		tmp_pam <- intrinsic.cluster.predict(sbt.model=pam50.robust, data=t(dat), annot=annot,do.mapping=T)$subtype		
+		cur[j] <- sum(tmp_pam == st)/length(tmp_pam)
+	}		
+	
+	prog_mean[i+1] <- mean(cur)
+	prog_sd[i+1] <- sd(cur)
+}
+
+plot(prog_mean, type="l", ylim=c(0.7, 1), col="dodgerblue1",lwd=2, xlab="% ER negative in Population", ylab="% Concordance with Full Predictions", xaxt="n", main="Predictions vary as ER composition of patient set varies")
+axis(1, at=seq(0,40,10), labels=round(seq(0,40,10)/40, 2))
+lines(prog_mean - prog_sd, lty="dashed", col="red")
+lines(prog_mean + prog_sd, lty="dashed", col="red")
+
+```
+
+Now we're going to see what happens when we predict Tumor Grade using a built PAM model and a TSP model. We want to
+determine the effect of normalization on the predictions, and whether or not the predictions are invariant. The key is to determine
+if PAM scaled and unscaled perform similarly in different settings.
+
+```{r grade, cache=TRUE, fig.width=15, fig.height=12, eval=TRUE, warning=FALSE}
+# We're going to work with GSE5460 (hgu133plus2) and ISDB10828 (agilent)
+# Let's see what happens when we build models using PAM
+# on unscaled and scaled (2 ways) data, and predict on unscaled and scaled data
+# FOR GRADE
+
+set.seed(8101)
+dat <- eset.all$GSE7390
+idx_grade <- which(pData(dat)$grade != 2)
+mat <- exprs(dat)[,idx_grade] # Just take the 1's and 3's
+outcome <- pData(dat)$grade[idx_grade]
+PAM50_names <- rownames(pam50$centroids.map)
+genes <- unlist(sapply(PAM50_names, function(x){rownames(fData(dat))[which(fData(dat)$SYMBOL == x)]}))
+mat <- mat[genes,]
+mat_norm_q <- normalize.quantiles(mat)
+mat_norm_r <- t(apply(mat, 1, function(x){(rescale(x, q=0.05) - 0.5) * 2}))
+
+idx <- sample(1:ncol(mat),round(ncol(mat)/3))
+train <- mat[,-idx]
+test <- mat[,idx]
+train_norm_q <- mat_norm_q[,-idx]
+test_norm_q <- mat_norm_q[,idx]
+train_norm_r <- mat_norm_r[,-idx]
+test_norm_r <- mat_norm_r[,idx]
+
+dimnames(train_norm_q) <- dimnames(train_norm_r) <- list(rownames(train), colnames(train))
+dimnames(test_norm_q) <- dimnames(test_norm_r) <- list(rownames(test), colnames(test))
+
+train_outcome <- outcome[-idx]
+test_outcome <- outcome[idx]
+
+# First we train the PAM classifier
+pam_dat <- list(x=train, y=train_outcome, geneids=rownames(train))
+pam_dat_q <- list(x=train_norm_q, y=train_outcome, geneids=rownames(train_norm_q))
+pam_dat_r <- list(x=train_norm_r, y=train_outcome, geneids=rownames(train_norm_r))
+pam_er <- pamr.train(pam_dat)
+pam_er_q <- pamr.train(pam_dat_q)
+pam_er_r <- pamr.train(pam_dat_r)
+pam_er_cv <- pamr.cv(pam_er, pam_dat)
+pam_er_cv_q <- pamr.cv(pam_er_q, pam_dat_q)
+pam_er_cv_r <- pamr.cv(pam_er_r, pam_dat_r)
+
+# 14, 15, 15
+thresh_er <- 1.5
+thresh_er_q <- 1.2
+thresh_er_r <- 1.55
+
+# Create sbt models for scaled and unscaled so that we can do predictions using intrinsic.cluster.predict
+
+final_genes <- pamr.listgenes(pam_er, pam_dat, thresh_er)[,"id"]
+
+pam_er_sbt_scaled <- pam50.robust
+cent <- pam_er$centroids[final_genes,]
+cent_map <- fData(dat)[rownames(cent),]
+cent_map <- data.frame("probe"=cent_map$SYMBOL, "probe.centroids"=cent_map$SYMBOL, "EntrezGene.ID"=cent_map$ENTREZID)
+rownames(cent_map) <- cent_map$probe
+rownames(cent) <- fData(dat)[rownames(cent), "SYMBOL"]
+pam_er_sbt_scaled$centroids <- cent
+pam_er_sbt_scaled$centroids.map <- cent_map
+
+rownames(test) <- fData(dat)[rownames(test),"SYMBOL"]
+preds_pam_scaled <- intrinsic.cluster.predict(pam_er_sbt_scaled, t(test), pam_er_sbt_scaled$centroids.map)$subtype
+
+pam_er_sbt_unscaled <- pam_er_sbt_scaled
+pam_er_sbt_unscaled$std <- "none"
+preds_pam_unscaled <- intrinsic.cluster.predict(pam_er_sbt_unscaled, t(test), pam_er_sbt_scaled$centroids.map)$subtype
+
+# Let's see how all models do on an external test set of a completely different platform
+# We will test on Illumina and Agilent datasets
+
+# ILLUMINA
+pred_set <- eset.all$ISDB10278
+pred_mat <- make_mat(exprs(pred_set), genes)
+rownames(pred_mat) <- fData(pred_set)[rownames(pred_mat), "SYMBOL"]
+
+preds_pam2_scaled <- intrinsic.cluster.predict(pam_er_sbt_scaled, t(pred_mat), pam_er_sbt_scaled$centroids.map)$subtype
+preds_pam2_unscaled <- intrinsic.cluster.predict(pam_er_sbt_unscaled, t(pred_mat), pam_er_sbt_scaled$centroids.map)$subtype
+
+tb_sc_il <- table(preds_pam2_scaled, pData(pred_set)$grade)
+tb_un_il <- table(preds_pam2_unscaled, pData(pred_set)$grade)
+
+# AGILENT
+pred_set <- eset.all$ISDB10845
+pred_mat <- make_mat(exprs(pred_set), genes)
+rownames(pred_mat) <- fData(pred_set)[rownames(pred_mat), "SYMBOL"]
+
+preds_pam2_scaled <- intrinsic.cluster.predict(pam_er_sbt_scaled, t(pred_mat), pam_er_sbt_scaled$centroids.map)$subtype
+preds_pam2_unscaled <- intrinsic.cluster.predict(pam_er_sbt_unscaled, t(pred_mat), pam_er_sbt_scaled$centroids.map)$subtype
+
+tb_sc_ag <- table(preds_pam2_scaled, pData(pred_set)$grade)
+tb_un_ag <- table(preds_pam2_unscaled, pData(pred_set)$grade)
+
+# Summarize the sensitivity and specificity of above tables into a boxplot
+
+#acc <- c(162/(162+8), 167/(167+3), 454/(454+503), 807/(807+150),
+ #        16/(16+9), 20/(20+5), 101/(101+46), 86/(86+61))
+acc <- c(tb_sc_il[1]/colSums(tb_sc_il)[1], tb_un_il[1]/colSums(tb_un_il)[1], tb_sc_il[6]/colSums(tb_sc_il)[3], tb_un_il[6]/colSums(tb_un_il)[3], tb_sc_ag[1]/colSums(tb_sc_ag)[1], tb_un_ag[1]/colSums(tb_un_ag)[1], tb_sc_ag[6]/colSums(tb_sc_ag)[3], tb_un_ag[6]/colSums(tb_un_ag)[3])
+
+names <- rep(c("Illumina Grade 1", "Illumina Grade 3", "Agilent Grade 1", "Agilent Grade 3"), each=2)
+mod <- rep(c("PAM Scaled", "PAM Unscaled"), 4)
+
+dat <- data.frame("acc"=acc, "names"=names, "mod"=mod)
+
+ggplot(dat, aes(names, acc, fill = mod)) +  geom_bar(stat="identity", position = "dodge") + scale_fill_brewer(name="Prediction Method", palette = "Set1") + xlab("Platform/Grade") + ylab("Accuracy")
+
+```
+
+
