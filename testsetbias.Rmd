@@ -1,6 +1,6 @@
 # Analysis run for Cross-platform TSP
 
-# First, we load all the libraries, files, and data.
+#First, we load all the libraries, files, and data.
 
 ```{r dependencies, eval=TRUE}
 set.seed(47209)
@@ -11,10 +11,11 @@ library(plyr)
 library(affyPLM)
 library(pamr)
 library(MetaGx)
-source("download_esets.R")
+#source("download_esets.R")
+load("/amber2/scratch/persmed/BC/1_15_2014_eset.Rda")
 ```
 
-Let us get summary information on our datasets (28 total microarry experiments).
+First let us get summary information on our datasets (28 total microarry experiments).
 
 ```{r init, cache=TRUE, warning=FALSE}
 
@@ -167,6 +168,22 @@ determine the effect of normalization on the predictions, and whether or not the
 if PAM scaled and unscaled perform similarly in different settings.
 
 ```{r grade, cache=TRUE, fig.width=15, fig.height=12, eval=TRUE, warning=FALSE}
+
+# Function to create a submatrix from a new expressionset given a list of genes
+make_mat <- function(data,genes){
+        mat <- matrix(NA, length(genes), ncol(data))
+        rownames(mat) <- genes
+        colnames(mat) <- colnames(data)
+
+        for(i in 1:length(genes)){
+                if(genes[i] %in% rownames(data)){
+                        mat[i,] <- data[genes[i],]
+                }
+        }
+
+        mat
+}
+
 # We're going to work with GSE5460 (hgu133plus2) and ISDB10828 (agilent)
 # Let's see what happens when we build models using PAM
 # on unscaled and scaled (2 ways) data, and predict on unscaled and scaled data
@@ -208,6 +225,8 @@ pam_er_cv <- pamr.cv(pam_er, pam_dat)
 pam_er_cv_q <- pamr.cv(pam_er_q, pam_dat_q)
 pam_er_cv_r <- pamr.cv(pam_er_r, pam_dat_r)
 
+pam_er_cv
+
 # 14, 15, 15
 thresh_er <- 1.5
 thresh_er_q <- 1.2
@@ -232,6 +251,9 @@ preds_pam_scaled <- intrinsic.cluster.predict(pam_er_sbt_scaled, t(test), pam_er
 pam_er_sbt_unscaled <- pam_er_sbt_scaled
 pam_er_sbt_unscaled$std <- "none"
 preds_pam_unscaled <- intrinsic.cluster.predict(pam_er_sbt_unscaled, t(test), pam_er_sbt_scaled$centroids.map)$subtype
+
+tb_sc_test <- table(preds_pam_scaled, test_outcome)
+tb_un_test <- table(preds_pam_unscaled, test_outcome)
 
 # Let's see how all models do on an external test set of a completely different platform
 # We will test on Illumina and Agilent datasets
@@ -262,10 +284,10 @@ tb_un_ag <- table(preds_pam2_unscaled, pData(pred_set)$grade)
 
 #acc <- c(162/(162+8), 167/(167+3), 454/(454+503), 807/(807+150),
  #        16/(16+9), 20/(20+5), 101/(101+46), 86/(86+61))
-acc <- c(tb_sc_il[1]/colSums(tb_sc_il)[1], tb_un_il[1]/colSums(tb_un_il)[1], tb_sc_il[6]/colSums(tb_sc_il)[3], tb_un_il[6]/colSums(tb_un_il)[3], tb_sc_ag[1]/colSums(tb_sc_ag)[1], tb_un_ag[1]/colSums(tb_un_ag)[1], tb_sc_ag[6]/colSums(tb_sc_ag)[3], tb_un_ag[6]/colSums(tb_un_ag)[3])
+acc <- c(tb_sc_test[1]/colSums(tb_sc_test)[1], tb_un_test[1]/colSums(tb_un_test)[1], tb_sc_test[4]/colSums(tb_sc_test)[2], tb_un_test[4]/colSums(tb_un_test)[2], tb_sc_il[1]/colSums(tb_sc_il)[1], tb_un_il[1]/colSums(tb_un_il)[1], tb_sc_il[6]/colSums(tb_sc_il)[3], tb_un_il[6]/colSums(tb_un_il)[3], tb_sc_ag[1]/colSums(tb_sc_ag)[1], tb_un_ag[1]/colSums(tb_un_ag)[1], tb_sc_ag[6]/colSums(tb_sc_ag)[3], tb_un_ag[6]/colSums(tb_un_ag)[3])
 
-names <- rep(c("Illumina Grade 1", "Illumina Grade 3", "Agilent Grade 1", "Agilent Grade 3"), each=2)
-mod <- rep(c("PAM Scaled", "PAM Unscaled"), 4)
+names <- rep(c("Test Grade 1 (Affy)", "Test Grade 3 (Affy)", "Illumina Grade 1", "Illumina Grade 3", "Agilent Grade 1", "Agilent Grade 3"), each=2)
+mod <- rep(c("PAM Scaled", "PAM Unscaled"), 6)
 
 dat <- data.frame("acc"=acc, "names"=names, "mod"=mod)
 
