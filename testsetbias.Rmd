@@ -122,7 +122,7 @@ for(i in 1:length(num)){
 	}
 }
 
-boxplot(prog, names=num, outline=F,xlab="# Samples", ylab="% Concordance with Full Predictions", main="Changes in predictions on scaled data as more patients are added")
+boxplot(prog, names=num, outline=F,xlab="# Samples", ylab="% Concordance with Full Predictions", main="Changes in predictions on scaled data as more patients are added", cex.axis=2)
 for(i in 1:length(num)){
 	points(jitter(rep(i, n), amount=1/(i+3)), prog[,i], pch=21, bg="dodgerblue1", col="black")
 }
@@ -156,8 +156,8 @@ for(i in 0:40){
 	prog_sd[i+1] <- sd(cur)
 }
 
-plot(prog_mean, type="l", ylim=c(0.7, 1), col="dodgerblue1",lwd=2, xlab="% ER negative in Population", ylab="% Concordance with Full Predictions", xaxt="n", main="Predictions vary as ER composition of patient set varies")
-axis(1, at=seq(0,40,10), labels=round(seq(0,40,10)/40, 2))
+plot(prog_mean, type="l", ylim=c(0.7, 1), col="dodgerblue1",lwd=2, xlab="% ER negative in Population", ylab="% Concordance with Full Predictions", xaxt="n", main="Predictions vary as ER composition of patient set varies", cex.axis=2)
+axis(1, at=seq(0,40,10), labels=round(seq(0,40,10)/40, 2), cex.axis=2)
 lines(prog_mean - prog_sd, lty="dashed", col="red")
 lines(prog_mean + prog_sd, lty="dashed", col="red")
 
@@ -286,12 +286,18 @@ tb_un_ag <- table(preds_pam2_unscaled, pData(pred_set)$grade)
  #        16/(16+9), 20/(20+5), 101/(101+46), 86/(86+61))
 acc <- c(tb_sc_test[1]/colSums(tb_sc_test)[1], tb_un_test[1]/colSums(tb_un_test)[1], tb_sc_test[4]/colSums(tb_sc_test)[2], tb_un_test[4]/colSums(tb_un_test)[2], tb_sc_il[1]/colSums(tb_sc_il)[1], tb_un_il[1]/colSums(tb_un_il)[1], tb_sc_il[6]/colSums(tb_sc_il)[3], tb_un_il[6]/colSums(tb_un_il)[3], tb_sc_ag[1]/colSums(tb_sc_ag)[1], tb_un_ag[1]/colSums(tb_un_ag)[1], tb_sc_ag[6]/colSums(tb_sc_ag)[3], tb_un_ag[6]/colSums(tb_un_ag)[3])
 
-names <- rep(c("Test Grade 1 (Affy)", "Test Grade 3 (Affy)", "Illumina Grade 1", "Illumina Grade 3", "Agilent Grade 1", "Agilent Grade 3"), each=2)
+names <- rep(c("Affy (1)", "Affy (3)", "Illumina (1)", "Illumina (3)", "Agilent (1)", "Agilent (3)"), each=2)
 mod <- rep(c("PAM Scaled", "PAM Unscaled"), 6)
 
 dat <- data.frame("acc"=acc, "names"=names, "mod"=mod)
 
-ggplot(dat, aes(names, acc, fill = mod)) +  geom_bar(stat="identity", position = "dodge") + scale_fill_brewer(name="Prediction Method", palette = "Set1") + xlab("Platform/Grade") + ylab("Accuracy")
+pl <- ggplot(dat, aes(names, acc, fill = mod)) +  geom_bar(stat="identity", position = "dodge") + scale_fill_brewer(name="Prediction Method", palette = "Set1") + xlab("") + ylab("")
+pl + theme(axis.title.x = element_text(size=6),
+	     axis.title.y = element_text(size=6),
+	     axis.text.x = element_text(size=22, color="black"),
+	     axis.text.y = element_text(size=22, color="black"),
+	     legend.title = element_text(size=20),
+	     legend.text = element_text(size=20))
 
 ```
 
