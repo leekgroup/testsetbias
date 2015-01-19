@@ -5,7 +5,7 @@ system.
 
 	The following can be installed from CRAN:
 
-	colorspace, ggplot2, plyr, knitr
+	colorspace, ggplot2, plyr, knitr, tables
 
 	The following can be installed from Bioconductor using the code
 	source("http://bioconductor.org/biocLite.R")
@@ -28,7 +28,7 @@ your working directory. Then run the following commands
 	library(knitr)
 	knit2html("testsetbias.Rmd")
 
-The whole processs should take about 15 minutes to run. The resulting file
+The whole processs should take about 35 minutes to run. The resulting file
 "testsetbias.html" can be opened in a web browser to view the analysis
 and figures from the paper.
 
