@@ -12,7 +12,7 @@ library(affyPLM)
 library(pamr)
 library(MetaGx)
 library(tables)
-load("/amber2/scratch/persmed/BC/1_15_2014_eset.Rda")
+source("download_esets.R") #global data load
 ```
 
 First let us get summary information on our datasets (28 total microarry experiments).
@@ -313,7 +313,18 @@ full <- data.frame("mean" = c(affy_mean, ag_mean, il_mean), "sd" = c(affy_sd, ag
 full$mean <- round(full$mean, 2)
 full$sd <- round(full$sd, 2)
 # Latex-style table output
-latex(tabular(train*norm ~ prediction*grade*(mean + sd)*Heading()*identity, data=full))
+#latex(tabular(train*norm ~ prediction*grade*(mean + sd)*Heading()*identity, data=full))
+
+ggplot(full, aes(x = grade, y = mean, fill = norm)) +
+    geom_bar(stat = "identity", position = position_dodge()) +
+    facet_grid(prediction ~ train) +
+    theme(strip.text.x = element_text(size = 15), strip.text.y = element_text(size = 15)) +
+    geom_errorbar(aes(ymin = mean - sd, ymax = mean + sd, group = norm),
+                  position = position_dodge(0.9), width=0.2) +
+    xlab("Tumor Grade") + ylab("Average Accuracy") +             
+    theme(axis.title.x = element_text(size=15, face="bold"), axis.title.y = element_text(size=15, face="bold"),
+          axis.text.x=element_text(color="black"),axis.text.y=element_text(color="black")) +
+    guides(fill=guide_legend(title="Normalization"))
 
 ```
 
